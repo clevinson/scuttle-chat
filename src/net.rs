@@ -2,13 +2,11 @@ use base64;
 use net2::unix::UnixUdpBuilderExt;
 use net2::UdpBuilder;
 use regex::Regex;
-use ssb_crypto::handshake::HandshakeKeys;
-use ssb_crypto::{generate_longterm_keypair, PublicKey};
-use ssb_handshake::HandshakeError;
+use ssb_crypto::PublicKey;
 use std::error;
 use std::fmt;
 use std::io;
-use std::net::{SocketAddr, TcpStream, UdpSocket};
+use std::net::{SocketAddr, UdpSocket};
 use std::str::FromStr;
 
 #[derive(Debug, Clone)]

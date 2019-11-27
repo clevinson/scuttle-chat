@@ -18,10 +18,10 @@ pub enum Event<I> {
 /// type is handled in its own thread and returned to a common `Receiver`
 pub struct Events {
     rx: mpsc::Receiver<Event<Key>>,
-    input_handle: thread::JoinHandle<()>,
-    tick_handle: thread::JoinHandle<()>,
-    new_peer_handle: thread::JoinHandle<()>,
-    pm_handle: thread::JoinHandle<()>,
+    _input_handle: thread::JoinHandle<()>,
+    _tick_handle: thread::JoinHandle<()>,
+    _new_peer_handle: thread::JoinHandle<()>,
+    _pm_handle: thread::JoinHandle<()>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -46,7 +46,7 @@ impl Events {
 
     pub fn with_config(cm_rx: mpsc::Receiver<PeerManagerEvent>, config: Config) -> Events {
         let (tx, rx) = mpsc::channel();
-        let input_handle = {
+        let _input_handle = {
             let tx = tx.clone();
             thread::spawn(move || {
                 let stdin = io::stdin();
@@ -65,7 +65,7 @@ impl Events {
                 }
             })
         };
-        let tick_handle = {
+        let _tick_handle = {
             let tx = tx.clone();
             thread::spawn(move || {
                 loop {
@@ -74,7 +74,7 @@ impl Events {
                 }
             })
         };
-        let new_peer_handle = {
+        let _new_peer_handle = {
             let tx = tx.clone();
             let peer_listener = PeerListener::new().unwrap();
             thread::spawn(move || {
@@ -85,7 +85,7 @@ impl Events {
                 }
             })
         };
-        let pm_handle = {
+        let _pm_handle = {
             let tx = tx.clone();
             thread::spawn(move || {
                 loop {
@@ -98,10 +98,10 @@ impl Events {
 
         Events {
             rx,
-            input_handle,
-            tick_handle,
-            new_peer_handle,
-            pm_handle,
+            _input_handle,
+            _tick_handle,
+            _new_peer_handle,
+            _pm_handle,
         }
     }
 

@@ -90,6 +90,7 @@ impl<R: Read> BoxReader<R> {
     }
 }
 
+#[allow(dead_code)]
 pub struct BoxWriter<W: Write> {
     writer: W,
     key: secretbox::Key,
@@ -105,6 +106,7 @@ fn seal_header(payload: &mut [u8; 18], nonce: Nonce, key: &secretbox::Key) -> [u
     hbox
 }
 
+#[allow(dead_code)]
 fn seal(mut body: Vec<u8>, key: &secretbox::Key, noncegen: &mut NonceGen) -> ([u8; 34], Vec<u8>) {
     let head_nonce = noncegen.next();
     let body_nonce = noncegen.next();
@@ -124,6 +126,7 @@ fn seal(mut body: Vec<u8>, key: &secretbox::Key, noncegen: &mut NonceGen) -> ([u
     (head, body)
 }
 
+#[allow(dead_code)]
 impl<W: Write> BoxWriter<W> {
     pub fn new(w: W, key: secretbox::Key, noncegen: NonceGen) -> BoxWriter<W> {
         BoxWriter {

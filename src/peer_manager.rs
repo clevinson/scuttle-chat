@@ -1,13 +1,10 @@
 use crate::net::SsbPeer;
-use hex;
-use ssb_crypto::handshake::HandshakeKeys;
-use ssb_crypto::{generate_longterm_keypair, NetworkKey, PublicKey, SecretKey};
-use ssb_handshake::HandshakeError;
+//use ssb_crypto::handshake::HandshakeKeys;
+use ssb_crypto::{NetworkKey, PublicKey, SecretKey};
+//use ssb_handshake::HandshakeError;
 use std::collections::HashMap;
 use std::io;
-use std::io::Read;
 use std::net::TcpStream;
-use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc};
 use std::thread;
 
@@ -18,7 +15,7 @@ pub struct PeerManager {
     peer_connections: HashMap<String, mpsc::Sender<PeerMsg>>,
 }
 
-type HandshakeResult = Result<HandshakeKeys, HandshakeError>;
+//type HandshakeResult = Result<HandshakeKeys, HandshakeError>;
 type PeerMsg = String;
 
 pub struct PeerManagerEvent {
@@ -27,15 +24,15 @@ pub struct PeerManagerEvent {
 }
 
 pub enum PeerEvent {
-    HandshakeResult(HandshakeResult),
+    HandshakeSuccessful,
     ConnectionClosed(io::Result<()>),
     MessageReceived(PeerMsg),
-    ConnectionReady(TcpStream),
+    //ConnectionReady(TcpStream),
 }
 
 impl PeerManager {
     pub fn new(event_bus: mpsc::Sender<PeerManagerEvent>) -> PeerManager {
-        let mut peer_connections = HashMap::new();
+        let peer_connections = HashMap::new();
         PeerManager {
             event_bus,
             peer_connections,
@@ -50,7 +47,7 @@ impl PeerManager {
     ) -> thread::JoinHandle<()> {
         let event_bus = self.event_bus.clone();
 
-        let (peer_tx, peer_rx) = mpsc::channel::<PeerMsg>();
+        let (peer_tx, _peer_rx) = mpsc::channel::<PeerMsg>();
 
         self.peer_connections.insert(peer.feed_id(), peer_tx);
 
@@ -65,10 +62,10 @@ impl PeerManager {
                 )?;
                 let hs_keys = ssb_handshake::client(&mut tcp_stream, net_key, pk, sk, server_pk)?;
 
-                //event_bus.send(PeerManagerEvent {
-                //    event: PeerEvent::HandshakeResult(Ok(hs_keys)),
-                //    peer: peer.clone(),
-                //});
+                event_bus.send(PeerManagerEvent {
+                    event: PeerEvent::HandshakeSuccessful,
+                    peer: peer.clone(),
+                }).unwrap();
 
                 let key = hs_keys.read_key;
                 let noncegen = hs_keys.read_noncegen;
@@ -87,23 +84,7 @@ impl PeerManager {
                     event_bus.send(PeerManagerEvent {
                         event: PeerEvent::MessageReceived(peer_msg),
                         peer: peer.clone(),
-                    });
-                    //let mut header = [0; 34];
-                    //tcp_stream.read_exact(&mut header)?;
-
-                    //event_bus.send(PeerManagerEvent {
-                    //    event: PeerEvent::MessageReceived(format!("Found {} bytes", header.len())),
-                    //    peer: peer.clone(),
-                    //});
-
-                    //let mut body = Vec::new();
-
-                    //let num_bytes = tcp_stream.read_to_end(&mut body)?;
-
-                    //event_bus.send(PeerManagerEvent {
-                    //    event: PeerEvent::MessageReceived(format!("Found in body {} bytes", num_bytes)),
-                    //    peer: peer.clone(),
-                    //});
+                    }).unwrap();
                 }
             };
 
