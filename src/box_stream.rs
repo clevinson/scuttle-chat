@@ -136,7 +136,7 @@ impl<W: Write> BoxWriter<W> {
         }
     }
 
-    pub fn send(mut self, body: Vec<u8>) -> Result<(), io::Error> {
+    pub fn send(&mut self, body: Vec<u8>) -> Result<(), io::Error> {
         assert!(body.len() <= 4096);
 
         let (head, mut cipher_body) = seal(body, &self.key, &mut self.noncegen);
@@ -150,10 +150,9 @@ impl<W: Write> BoxWriter<W> {
         r
     }
 
-    pub fn send_goodbye(mut self) -> (Self, Result<(), io::Error>) {
+    pub fn send_goodbye(mut self) -> Result<(), io::Error> {
         let mut payload = [0; 18];
         let head = seal_header(&mut payload, self.noncegen.next(), &self.key);
-        let r = self.writer.write_all(&head);
-        (self, r)
+        self.writer.write_all(&head)
     }
 }

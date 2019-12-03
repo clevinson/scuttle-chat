@@ -1,11 +1,11 @@
+use crate::app::App;
+use crate::chat::ChatSender;
+use std::io;
 use tui::backend::Backend;
 use tui::layout::{Constraint, Direction, Layout};
 use tui::style::{Color, Modifier, Style};
 use tui::widgets::{Block, Borders, Paragraph, SelectableList, Text, Widget};
 use tui::Terminal;
-use std::io;
-use crate::app::App;
-use crate::chat::ChatSender;
 
 pub fn draw<'a, B: Backend>(terminal: &mut Terminal<B>, app: &App<'a>) -> Result<(), io::Error> {
     terminal.draw(|mut f| {
@@ -86,16 +86,16 @@ fn draw_chat_pane<'a, B: Backend>(
         selected_peer.unwrap_or(&"No peer selected".to_string())
     );
 
-    let maybe_chat = selected_peer.and_then(|feed_id| app.chats.get(feed_id));
-
     let default_chat_text = vec![Text::styled(
         "No chat selected. To initiate a chat, select a user, and press <RETURN>",
         app.info_style,
     )];
 
-    let chat_texts = maybe_chat
+    let chat_texts = app
+        .selected_chat()
         .map(|chat| {
-            chat.iter()
+            chat.messages
+                .iter()
                 .map(|chat_msg| {
                     Text::styled(
                         format!("{}: {}\n", chat_msg.sender, chat_msg.message),
@@ -110,12 +110,17 @@ fn draw_chat_pane<'a, B: Backend>(
         })
         .unwrap_or(default_chat_text);
 
+    let input_text = app
+        .selected_chat()
+        .map(|chat| chat.input.clone())
+        .unwrap_or("".to_string());
+
     Paragraph::new(chat_texts.iter())
         .block(Block::default().borders(Borders::ALL).title(&chat_title))
         .wrap(true)
         .render(f, chunks[0]);
 
-    Paragraph::new([Text::raw("")].iter())
+    Paragraph::new([Text::raw(input_text)].iter())
         .block(Block::default().borders(Borders::ALL).title("Input"))
         .wrap(true)
         .render(f, chunks[1]);

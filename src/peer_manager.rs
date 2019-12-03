@@ -8,11 +8,10 @@ use std::net::TcpStream;
 use std::sync::{mpsc, Arc};
 use std::thread;
 
-use crate::box_stream::BoxReader;
+use crate::box_stream::{BoxReader, BoxWriter};
 
 pub struct PeerManager {
     event_bus: mpsc::Sender<PeerManagerEvent>,
-    peer_connections: HashMap<String, mpsc::Sender<PeerMsg>>,
 }
 
 //type HandshakeResult = Result<HandshakeKeys, HandshakeError>;
@@ -24,7 +23,7 @@ pub struct PeerManagerEvent {
 }
 
 pub enum PeerEvent {
-    HandshakeSuccessful,
+    HandshakeSuccessful(mpsc::Sender<PeerMsg>),
     ConnectionClosed(io::Result<()>),
     MessageReceived(PeerMsg),
     //ConnectionReady(TcpStream),
@@ -32,12 +31,9 @@ pub enum PeerEvent {
 
 impl PeerManager {
     pub fn new(event_bus: mpsc::Sender<PeerManagerEvent>) -> PeerManager {
-        let peer_connections = HashMap::new();
-        PeerManager {
-            event_bus,
-            peer_connections,
-        }
+        PeerManager { event_bus }
     }
+
 
     pub fn init_handshake(
         &mut self,
@@ -47,9 +43,7 @@ impl PeerManager {
     ) -> thread::JoinHandle<()> {
         let event_bus = self.event_bus.clone();
 
-        let (peer_tx, _peer_rx) = mpsc::channel::<PeerMsg>();
-
-        self.peer_connections.insert(peer.feed_id(), peer_tx);
+        let (peer_tx, peer_rx) = mpsc::channel::<PeerMsg>();
 
         thread::spawn(move || {
             let init_connection = || {
@@ -60,31 +54,53 @@ impl PeerManager {
                     &peer.socket_addr,
                     std::time::Duration::from_millis(500),
                 )?;
+
                 let hs_keys = ssb_handshake::client(&mut tcp_stream, net_key, pk, sk, server_pk)?;
 
-                event_bus.send(PeerManagerEvent {
-                    event: PeerEvent::HandshakeSuccessful,
-                    peer: peer.clone(),
-                }).unwrap();
+                let tcp_stream = Arc::new(tcp_stream);
 
-                let key = hs_keys.read_key;
-                let noncegen = hs_keys.read_noncegen;
+                event_bus
+                    .send(PeerManagerEvent {
+                        event: PeerEvent::HandshakeSuccessful(peer_tx),
+                        peer: peer.clone(),
+                    })
+                    .unwrap();
 
-                let mut box_reader = BoxReader::new(tcp_stream, key, noncegen);
+                let write_stream = tcp_stream.clone();
+                let write_key = hs_keys.write_key;
+                let write_noncegen = hs_keys.write_noncegen;
+
+                let _peer_tx_handle: thread::JoinHandle<Result<(), mpsc::RecvError>> =
+                    thread::spawn(move || {
+                        let mut box_writer =
+                            BoxWriter::new(&*write_stream, write_key, write_noncegen);
+
+                        loop {
+                            let peer_msg = peer_rx.recv()?;
+                            let bytes = peer_msg.as_bytes();
+
+                            box_writer.send(bytes.to_vec()).unwrap();
+                        }
+                    });
+
+                let mut box_reader =
+                    BoxReader::new(&*tcp_stream, hs_keys.read_key, hs_keys.read_noncegen);
 
                 loop {
                     let maybe_bytes = box_reader.recv()?;
 
                     let peer_msg = match maybe_bytes {
-                        Some(raw_bytes) => String::from_utf8(raw_bytes.clone()).unwrap_or(
-                            format!("Raw bytes: {:?}", raw_bytes)),
+                        Some(raw_bytes) => String::from_utf8(raw_bytes.clone())
+                            .unwrap_or(format!("Raw bytes: {:?}", raw_bytes)),
                         None => "Goodbye!".to_string(),
                     };
 
-                    event_bus.send(PeerManagerEvent {
-                        event: PeerEvent::MessageReceived(peer_msg),
-                        peer: peer.clone(),
-                    }).unwrap();
+                    event_bus
+                        .send(PeerManagerEvent {
+                            event: PeerEvent::MessageReceived(peer_msg),
+                            peer: peer.clone(),
+                        })
+                        .unwrap();
                 }
             };
 

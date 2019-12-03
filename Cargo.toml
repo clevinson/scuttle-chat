@@ -1,5 +1,5 @@
 [package]
-name = "rustybutt"
+name = "scuttle-chat"
 version = "0.1.0"
 authors = ["Cory Levinson <cjlevinson@gmail.com>"]
 edition = "2018"
@@ -18,4 +18,3 @@ termion = "1.5.3"
 ssb-handshake = { git = "https://github.com/scttnlsn/ssb-handshake", branch = "sync" }
 quick-error = "1.2.2"
 byteorder = "1.3.1"
-

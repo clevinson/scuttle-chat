@@ -1,6 +1,7 @@
 use std::fmt;
+use std::sync::mpsc;
 
-type FeedId = String;
+pub type FeedId = String;
 
 #[derive(Debug)]
 pub enum ChatSender {
@@ -13,6 +14,12 @@ pub enum ChatSender {
 pub struct ChatMsg {
     pub message: String,
     pub sender: ChatSender,
+}
+
+pub struct PeerChat {
+    pub messages: Vec<ChatMsg>,
+    pub input: String,
+    pub peer_tx: Option<mpsc::Sender<String>>
 }
 
 impl fmt::Display for ChatSender {
