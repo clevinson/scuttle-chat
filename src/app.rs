@@ -28,11 +28,11 @@ pub struct App<'a> {
 
 impl<'a> App<'a> {
     pub fn new() -> App<'a> {
-        let (cm_tx, cm_rx) = mpsc::channel::<PeerManagerEvent>();
+        let (pm_tx, pm_rx) = mpsc::channel::<PeerManagerEvent>();
         let (pk, sk) = generate_longterm_keypair();
-        let peer_manager = PeerManager::new(pk.clone(), sk.clone(), cm_tx);
+        let peer_manager = PeerManager::new(pk.clone(), sk.clone(), pm_tx);
 
-        let event_listener = Events::new(pk, cm_rx);
+        let event_listener = Events::new(pk, pm_rx);
 
         App {
             available_peers: HashMap::new(),
@@ -85,7 +85,6 @@ impl<'a> App<'a> {
         &mut self,
         mut terminal: &mut Terminal<B>,
     ) -> Result<(), Box<dyn Error>> {
-
         self.peer_manager.start_listener()?;
 
         loop {
@@ -181,7 +180,7 @@ impl<'a> App<'a> {
                     let peer_str = format!("{}", ssb_peer);
                     self.available_peers
                         .insert(ssb_peer.feed_id(), Arc::new(ssb_peer));
-                    self.log((peer_str, "NEW PEER"));
+                    self.log((peer_str, "ANN"));
                 }
                 Event::PeerManagerEvent(pm_event) => match pm_event.event {
                     PeerEvent::HandshakeSuccessful(peer_tx) => {
@@ -242,6 +241,9 @@ impl<'a> App<'a> {
                                 message: peer_msg,
                             });
                         }
+                    }
+                    PeerEvent::NewConnection => {
+                        self.log((format!("New handshake request from peer!"), "DEBUG"));
                     } //PeerEvent::ConnectionReady(_tcp_stream) => {
                       //    self.log(("Connection established".to_string(), "CONN READY"));
                       //}

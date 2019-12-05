@@ -17,11 +17,10 @@ pub const HANDSHAKE_LISTENER_PORT: u16 = PEER_DISCOVERY_PORT;
 pub struct PeerManager {
     event_bus: mpsc::Sender<PeerManagerEvent>,
     handshake_listener: Option<thread::JoinHandle<io::Result<()>>>,
-    ssb_public_key: PublicKey,
+    pub ssb_public_key: PublicKey,
     ssb_secret_key: SecretKey,
 }
 
-//type HandshakeResult = Result<HandshakeKeys, HandshakeError>;
 type PeerMsg = String;
 
 pub struct PeerManagerEvent {
@@ -33,6 +32,7 @@ pub enum PeerEvent {
     HandshakeSuccessful(mpsc::Sender<PeerMsg>),
     ConnectionClosed(io::Result<()>),
     MessageReceived(PeerMsg),
+    NewConnection,
     //ConnectionReady(TcpStream),
 }
 
@@ -60,8 +60,8 @@ impl PeerManager {
 
         let listener_handle = thread::spawn(move || -> io::Result<()> {
             for stream in listener.incoming() {
-
                 let sk = sk.clone();
+                let event_bus = event_bus.clone();
 
                 init_chat_handle(event_bus.clone(), stream?, move |stream| {
                     let client_addr = stream.peer_addr()?;
@@ -78,6 +78,13 @@ impl PeerManager {
                         socket_addr: client_addr,
                         protocol: Protocol::Net,
                     });
+
+                    event_bus.send(PeerManagerEvent {
+                        event: PeerEvent::NewConnection,
+                        peer: peer.clone(),
+                    });
+
+
                     Ok((peer, keys))
                 });
             }

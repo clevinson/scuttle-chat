@@ -1,14 +1,13 @@
 use base64;
 use net2::unix::UnixUdpBuilderExt;
 use net2::UdpBuilder;
-use nix::ifaddrs::getifaddrs;
 use nix::sys::socket::{InetAddr, SockAddr};
 use regex::Regex;
 use ssb_crypto::PublicKey;
 use std::error;
 use std::fmt;
 use std::io;
-use std::net::{SocketAddr, TcpListener, UdpSocket};
+use std::net::{SocketAddr, UdpSocket};
 use std::str::FromStr;
 use std::thread;
 use std::time::Duration;
@@ -138,6 +137,7 @@ impl From<ParsePeerAddrError> for DiscoveryServiceError {
 pub struct DiscoveryService {
     announce_listener: UdpSocket,
     announcer_handle: thread::JoinHandle<Result<(), io::Error>>,
+    public_key: PublicKey,
 }
 
 fn get_local_addr() -> Option<SocketAddr> {
@@ -168,12 +168,15 @@ fn init_announcer(
 
     thread::spawn(move || {
         let socket = UdpSocket::bind("0.0.0.0:0")?;
-        socket.set_broadcast(true);
+        socket.set_broadcast(true)?;
 
         let buf_bytes = ann_peer.as_bytes();
 
         loop {
-            socket.send_to(&buf_bytes, format!("255.255.255.255:{}", PEER_DISCOVERY_PORT))?;
+            socket.send_to(
+                &buf_bytes,
+                format!("255.255.255.255:{}", PEER_DISCOVERY_PORT),
+            )?;
             thread::sleep(Duration::from_secs_f32(2.0));
         }
     })
@@ -182,12 +185,10 @@ fn init_announcer(
 impl DiscoveryService {
     pub fn new(public_key: PublicKey) -> Result<Self, DiscoveryServiceError> {
         let socket_addr = format!("0.0.0.0:{}", PEER_DISCOVERY_PORT);
-        let announce_listener = UdpBuilder::new_v4()?
-            .reuse_port(true)?
-            .bind(&socket_addr)?;
+        let announce_listener = UdpBuilder::new_v4()?.reuse_port(true)?.bind(&socket_addr)?;
 
-
-        let mut hs_listener_socket_addr = get_local_addr().ok_or(DiscoveryServiceError::GetLocalAddrError)?;
+        let mut hs_listener_socket_addr =
+            get_local_addr().ok_or(DiscoveryServiceError::GetLocalAddrError)?;
         hs_listener_socket_addr.set_port(HANDSHAKE_LISTENER_PORT);
 
         let announcer_handle = init_announcer(hs_listener_socket_addr, public_key);
@@ -195,6 +196,7 @@ impl DiscoveryService {
         Ok(DiscoveryService {
             announce_listener,
             announcer_handle,
+            public_key,
         })
     }
 
@@ -210,6 +212,10 @@ impl DiscoveryService {
             .next()
             .ok_or(ParsePeerAddrError())??;
 
-        Ok(peer)
+        if self.public_key == peer.public_key {
+            self.recv()
+        } else {
+          Ok(peer)
+        }
     }
 }

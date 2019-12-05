@@ -15,8 +15,6 @@ pub enum Event<I> {
     PeerManagerEvent(PeerManagerEvent),
 }
 
-/// A small event handler that wrap termion input and tick events. Each event
-/// type is handled in its own thread and returned to a common `Receiver`
 pub struct Events {
     rx: mpsc::Receiver<Event<Key>>,
     _input_handle: thread::JoinHandle<()>,
@@ -41,13 +39,13 @@ impl Default for Config {
 }
 
 impl Events {
-    pub fn new(public_key: PublicKey, cm_rx: mpsc::Receiver<PeerManagerEvent>) -> Events {
-        Events::with_config(public_key, cm_rx, Config::default())
+    pub fn new(public_key: PublicKey, peer_manager_rx: mpsc::Receiver<PeerManagerEvent>) -> Events {
+        Events::with_config(public_key, peer_manager_rx, Config::default())
     }
 
     pub fn with_config(
         public_key: PublicKey,
-        cm_rx: mpsc::Receiver<PeerManagerEvent>,
+        peer_manager_rx: mpsc::Receiver<PeerManagerEvent>,
         config: Config,
     ) -> Events {
         let (tx, rx) = mpsc::channel();
@@ -89,8 +87,8 @@ impl Events {
         let _pm_handle = {
             let tx = tx.clone();
             thread::spawn(move || loop {
-                if let Ok(cm_event) = cm_rx.recv() {
-                    let _res = tx.send(Event::PeerManagerEvent(cm_event));
+                if let Ok(pm_event) = peer_manager_rx.recv() {
+                    let _res = tx.send(Event::PeerManagerEvent(pm_event));
                 }
             })
         };
