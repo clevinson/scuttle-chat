@@ -1,6 +1,6 @@
 use crate::chat::{ChatMsg, ChatSender, FeedId, PeerChat};
+use crate::discovery::PeerAddr;
 use crate::event::{Event, Events};
-use crate::net::SsbPeer;
 use crate::peer_manager::{PeerEvent, PeerManager, PeerManagerEvent};
 use crate::ui::draw;
 use ssb_crypto::generate_longterm_keypair;
@@ -14,7 +14,7 @@ use tui::style::{Color, Style};
 use tui::Terminal;
 
 pub struct App<'a> {
-    pub available_peers: HashMap<FeedId, Arc<SsbPeer>>,
+    pub available_peers: HashMap<FeedId, Arc<PeerAddr>>,
     pub selected: Option<usize>,
     pub peer_chats: HashMap<FeedId, PeerChat>,
     pub debug_log: Vec<(String, &'a str)>,
@@ -29,9 +29,10 @@ pub struct App<'a> {
 impl<'a> App<'a> {
     pub fn new() -> App<'a> {
         let (cm_tx, cm_rx) = mpsc::channel::<PeerManagerEvent>();
-        let peer_manager = PeerManager::new(cm_tx);
+        let (pk, sk) = generate_longterm_keypair();
+        let peer_manager = PeerManager::new(pk.clone(), sk.clone(), cm_tx);
 
-        let event_listener = Events::new(cm_rx);
+        let event_listener = Events::new(pk, cm_rx);
 
         App {
             available_peers: HashMap::new(),
@@ -84,7 +85,8 @@ impl<'a> App<'a> {
         &mut self,
         mut terminal: &mut Terminal<B>,
     ) -> Result<(), Box<dyn Error>> {
-        let (pk, sk) = generate_longterm_keypair();
+
+        self.peer_manager.start_listener()?;
 
         loop {
             draw(&mut terminal, &self)?;
@@ -145,11 +147,7 @@ impl<'a> App<'a> {
                                     // No peer_chat initiated, so we should handshake,
                                     // which on "success" will initialiae a peer_chat
                                     // struct
-                                    self.peer_manager.init_handshake(
-                                        pk.clone(),
-                                        sk.clone(),
-                                        ssb_peer.clone(),
-                                    );
+                                    self.peer_manager.init_handshake(ssb_peer.clone());
                                 }
                             };
 
@@ -223,6 +221,9 @@ impl<'a> App<'a> {
                         self.log(("Handshake Successful".to_string(), "DEBUG"));
                     }
                     PeerEvent::ConnectionClosed(reason) => {
+                        if let Err(e) = &reason {
+                            self.log((format!("Connection Closed –– Error ({})", e), "ERROR"));
+                        }
                         if let Some(chat) = self.peer_chats.get_mut(&pm_event.peer.feed_id()) {
                             chat.messages.push(ChatMsg {
                                 sender: ChatSender::Info,

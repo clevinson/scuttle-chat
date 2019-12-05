@@ -12,7 +12,7 @@ mod app;
 mod box_stream;
 mod chat;
 mod event;
-mod net;
+mod discovery;
 mod peer_manager;
 mod ui;
 
