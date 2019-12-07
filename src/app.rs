@@ -104,8 +104,10 @@ impl<'a> App<'a> {
                             } else {
                                 Some(selected + 1)
                             }
-                        } else {
+                        } else if !self.available_peers.is_empty() {
                             Some(0)
+                        } else {
+                            None
                         }
                     }
                     Key::Up => {
@@ -115,8 +117,10 @@ impl<'a> App<'a> {
                             } else {
                                 Some(self.available_peers.len() - 1)
                             }
-                        } else {
+                        } else if !self.available_peers.is_empty() {
                             Some(0)
+                        } else {
+                            None
                         }
                     }
                     Key::Char('\n') => {
@@ -146,7 +150,7 @@ impl<'a> App<'a> {
                                     // No peer_chat initiated, so we should handshake,
                                     // which on "success" will initialiae a peer_chat
                                     // struct
-                                    self.peer_manager.init_handshake(ssb_peer.clone());
+                                    self.peer_manager.init_connection(**ssb_peer);
                                 }
                             };
 
@@ -183,7 +187,7 @@ impl<'a> App<'a> {
                     self.log((peer_str, "ANN"));
                 }
                 Event::PeerManagerEvent(pm_event) => match pm_event.event {
-                    PeerEvent::HandshakeSuccessful(peer_tx) => {
+                    PeerEvent::HandshakeSuccessful(peer_connection) => {
                         let msgs = vec![
                             ChatMsg {
                                 sender: ChatSender::Info,
@@ -198,13 +202,15 @@ impl<'a> App<'a> {
                             },
                         ];
 
+                        let box_writer = peer_connection.box_writer_tx.clone();
+
                         match self.peer_chats.get_mut(&pm_event.peer.feed_id()) {
                             // should check if peer_tx is already set, and handle
                             // gracefully (fail to set new handshake connection, or
                             // check prior peer_tx to see if it still is valid)
                             Some(chat) => {
                                 chat.messages.extend(msgs);
-                                chat.peer_tx = Some(peer_tx);
+                                chat.peer_tx = Some(box_writer);
                             }
                             None => {
                                 self.peer_chats.insert(
@@ -212,12 +218,12 @@ impl<'a> App<'a> {
                                     PeerChat {
                                         messages: msgs,
                                         input: "".to_string(),
-                                        peer_tx: Some(peer_tx),
+                                        peer_tx: Some(box_writer),
                                     },
                                 );
                             }
                         };
-                        self.log(("Handshake Successful".to_string(), "DEBUG"));
+                        self.peer_manager.connections.push(peer_connection);
                     }
                     PeerEvent::ConnectionClosed(reason) => {
                         if let Err(e) = &reason {
@@ -242,11 +248,6 @@ impl<'a> App<'a> {
                             });
                         }
                     }
-                    PeerEvent::NewConnection => {
-                        self.log((format!("New handshake request from peer!"), "DEBUG"));
-                    } //PeerEvent::ConnectionReady(_tcp_stream) => {
-                      //    self.log(("Connection established".to_string(), "CONN READY"));
-                      //}
                 },
             }
         }

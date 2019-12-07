@@ -16,7 +16,7 @@ use crate::peer_manager::HANDSHAKE_LISTENER_PORT;
 
 pub const PEER_DISCOVERY_PORT: u16 = 45982;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct PeerAddr {
     pub protocol: Protocol,
     pub socket_addr: SocketAddr,
@@ -35,7 +35,7 @@ impl fmt::Display for PeerAddr {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Protocol {
     WebSocket,
     Net,
@@ -136,8 +136,8 @@ impl From<ParsePeerAddrError> for DiscoveryServiceError {
 
 pub struct DiscoveryService {
     announce_listener: UdpSocket,
-    announcer_handle: thread::JoinHandle<Result<(), io::Error>>,
-    public_key: PublicKey,
+    _announcer_handle: thread::JoinHandle<Result<(), io::Error>>,
+    ignore_broadcasts_from: Option<SocketAddr>,
 }
 
 fn get_local_addr() -> Option<SocketAddr> {
@@ -182,8 +182,14 @@ fn init_announcer(
     })
 }
 
+#[allow(dead_code)]
+pub enum Mode {
+    Normal,
+    Debug,
+}
+
 impl DiscoveryService {
-    pub fn new(public_key: PublicKey) -> Result<Self, DiscoveryServiceError> {
+    pub fn new(mode: Mode, public_key: PublicKey) -> Result<Self, DiscoveryServiceError> {
         let socket_addr = format!("0.0.0.0:{}", PEER_DISCOVERY_PORT);
         let announce_listener = UdpBuilder::new_v4()?.reuse_port(true)?.bind(&socket_addr)?;
 
@@ -191,12 +197,15 @@ impl DiscoveryService {
             get_local_addr().ok_or(DiscoveryServiceError::GetLocalAddrError)?;
         hs_listener_socket_addr.set_port(HANDSHAKE_LISTENER_PORT);
 
-        let announcer_handle = init_announcer(hs_listener_socket_addr, public_key);
+        let _announcer_handle = init_announcer(hs_listener_socket_addr, public_key);
 
         Ok(DiscoveryService {
             announce_listener,
-            announcer_handle,
-            public_key,
+            _announcer_handle,
+            ignore_broadcasts_from: match mode {
+                Mode::Normal => Some(hs_listener_socket_addr),
+                Mode::Debug => None,
+            },
         })
     }
 
@@ -212,10 +221,9 @@ impl DiscoveryService {
             .next()
             .ok_or(ParsePeerAddrError())??;
 
-        if self.public_key == peer.public_key {
-            self.recv()
-        } else {
-          Ok(peer)
+        match self.ignore_broadcasts_from {
+            Some(socket_addr) if socket_addr == peer.socket_addr => self.recv(),
+            _ => Ok(peer),
         }
     }
 }

@@ -1,5 +1,5 @@
+use crate::discovery::{DiscoveryService, Mode, PeerAddr};
 use crate::peer_manager::PeerManagerEvent;
-use crate::discovery::{PeerAddr, DiscoveryService};
 use ssb_crypto::PublicKey;
 use std::io;
 use std::sync::mpsc;
@@ -77,7 +77,7 @@ impl Events {
         };
         let _new_peer_handle = {
             let tx = tx.clone();
-            let peer_listener = DiscoveryService::new(public_key).unwrap();
+            let peer_listener = DiscoveryService::new(Mode::Debug, public_key).unwrap();
             thread::spawn(move || loop {
                 if let Ok(ssb_peer) = peer_listener.recv() {
                     let _res = tx.send(Event::NewPeer(ssb_peer));
