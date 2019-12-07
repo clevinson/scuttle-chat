@@ -26,7 +26,6 @@ pub struct PeerManagerEvent {
 pub enum PeerEvent {
     HandshakeSuccessful(PeerConnection),
     MessageReceived(PeerMsg),
-
     // need to implement again when the
     // ConnectionClosed event gets called
     ConnectionClosed(io::Result<()>),
@@ -63,7 +62,6 @@ impl PeerManager {
         let listener_handle = thread::spawn(move || -> io::Result<()> {
             for stream in listener.incoming() {
                 let peer_connection = hs.server_handshake(stream?)?;
-
                 event_bus.send(PeerManagerEvent {
                     peer: peer_connection.peer,
                     event: PeerEvent::HandshakeSuccessful(peer_connection),
@@ -77,18 +75,23 @@ impl PeerManager {
         Ok(())
     }
 
-    pub fn init_connection(&self, peer: PeerAddr) -> thread::JoinHandle<io::Result<()>> {
+    pub fn init_connection(&self, peer: PeerAddr) -> thread::JoinHandle<()> {
         let hs = self.handshaker.clone();
         let event_bus = self.event_bus.clone();
 
-        thread::spawn(move || -> io::Result<()> {
-            let peer_connection = hs.client_handshake(peer)?;
-
-            event_bus.send(PeerManagerEvent {
-                peer: peer_connection.peer,
-                event: PeerEvent::HandshakeSuccessful(peer_connection),
-            });
-            Ok(())
+        thread::spawn(move || match hs.client_handshake(peer) {
+            Ok(peer_connection) => {
+                event_bus.send(PeerManagerEvent {
+                    peer,
+                    event: PeerEvent::HandshakeSuccessful(peer_connection),
+                });
+            }
+            Err(err) => {
+                event_bus.send(PeerManagerEvent {
+                    peer,
+                    event: PeerEvent::ConnectionClosed(Err(err)),
+                });
+            }
         })
     }
 }

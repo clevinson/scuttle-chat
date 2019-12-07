@@ -2,6 +2,7 @@ use crate::discovery::{PeerAddr, Protocol};
 use ssb_crypto::handshake::HandshakeKeys;
 use ssb_crypto::{NetworkKey, PublicKey, SecretKey};
 use ssb_handshake::HandshakeError;
+use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::sync::mpsc;
 use std::{io, thread};
@@ -21,6 +22,48 @@ pub struct PeerConnection {
 type BoxWriterHandle = thread::JoinHandle<Result<(), mpsc::RecvError>>;
 type BoxReaderHandle = thread::JoinHandle<Result<(), io::Error>>;
 
+fn spawn_reader_loop<R>(
+    tx: mpsc::Sender<PeerManagerEvent>,
+    peer: PeerAddr,
+    mut box_reader: BoxReader<R>,
+) -> BoxReaderHandle
+where
+    R: Read + Send + 'static,
+{
+    thread::spawn(move || -> Result<(), io::Error> {
+        loop {
+            let maybe_bytes = box_reader.recv()?;
+
+            let peer_msg = match maybe_bytes {
+                Some(raw_bytes) => String::from_utf8(raw_bytes.clone())
+                    .unwrap_or(format!("Raw bytes: {:?}", raw_bytes)),
+                None => "Goodbye!".to_string(),
+            };
+
+            tx.send(PeerManagerEvent {
+                peer,
+                event: PeerEvent::MessageReceived(peer_msg),
+            });
+        }
+    })
+}
+
+fn spawn_writer_loop<W>(mut box_writer: BoxWriter<W>) -> (mpsc::Sender<PeerMsg>, BoxWriterHandle)
+where
+    W: Write + Send + 'static,
+{
+    let (tx, rx) = mpsc::channel::<PeerMsg>();
+    let handle: BoxWriterHandle = thread::spawn(move || -> Result<(), mpsc::RecvError> {
+        loop {
+            let peer_msg = rx.recv().map(String::into_bytes)?;
+            // should "?" and have a BoxWriterHandleError
+            box_writer.send(peer_msg).unwrap();
+        }
+    });
+
+    (tx, handle)
+}
+
 impl PeerConnection {
     pub fn from_handshake<F>(
         event_bus: mpsc::Sender<PeerManagerEvent>,
@@ -35,41 +78,19 @@ impl PeerConnection {
         let write_stream = tcp_stream.try_clone()?;
         let mut box_writer =
             BoxWriter::new(write_stream, hs_keys.write_key, hs_keys.write_noncegen);
-        let (box_writer_tx, box_writer_rx) = mpsc::channel::<PeerMsg>();
-
-        let _box_writer_handle: BoxWriterHandle =
-            thread::spawn(move || -> Result<(), mpsc::RecvError> {
-                loop {
-                    let peer_msg = box_writer_rx.recv().map(String::into_bytes)?;
-                    // should "?" and have a BoxWriterHandleError
-                    box_writer.send(peer_msg).unwrap();
-                }
-            });
+        let (box_writer_tx, _box_writer_handle) = spawn_writer_loop(box_writer);
 
         let mut box_reader = BoxReader::new(tcp_stream, hs_keys.read_key, hs_keys.read_noncegen);
-        let _box_reader_handle: BoxReaderHandle = thread::spawn(move || -> Result<(), io::Error> {
-            loop {
-                let maybe_bytes = box_reader.recv()?;
+        let _box_reader_handle = spawn_reader_loop(event_bus.clone(), peer.clone(), box_reader);
 
-                let peer_msg = match maybe_bytes {
-                    Some(raw_bytes) => String::from_utf8(raw_bytes.clone())
-                        .unwrap_or(format!("Raw bytes: {:?}", raw_bytes)),
-                    None => "Goodbye!".to_string(),
-                };
-
-                event_bus.send(PeerManagerEvent {
-                    peer: peer.clone(),
-                    event: PeerEvent::MessageReceived(peer_msg),
-                });
-            }
-        });
-
-        Ok(PeerConnection {
+        let peer_connection = PeerConnection {
             peer,
             box_writer_tx,
             _box_reader_handle,
             _box_writer_handle,
-        })
+        };
+
+        Ok(peer_connection)
     }
 }
 
@@ -115,10 +136,7 @@ impl Handshaker {
         })
     }
 
-    pub fn server_handshake(
-        &self,
-        stream: TcpStream,
-    ) -> io::Result<PeerConnection> {
+    pub fn server_handshake(&self, stream: TcpStream) -> io::Result<PeerConnection> {
         let config = self.clone();
 
         PeerConnection::from_handshake(self.event_bus.clone(), stream, move |stream| {
