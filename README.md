@@ -38,7 +38,7 @@ cargo run
 
 ## Motivation
 
-[Scuttlebutt](https://scuttlebutt.nz) is really good at a bunch of things. Its biggest win is arguably its social graph, which creates a decentralized trusted network of public keys. In no other ecosystem do you have a fully decentralized Public Key Infrastructure where the trust signals that "Alice" is "Alice" come purely from her own history of messages, media and posts, combined with the trust signas from other trusted friends following Alice.
+[Scuttlebutt](https://scuttlebutt.nz) is really good at a bunch of things. Its biggest win is arguably its social graph, which creates a decentralized trusted network of public keys. In no other ecosystem do you have a fully decentralized Public Key Infrastructure where the trust signals that "Alice" is "Alice" come purely from her own history of messages, media and posts, combined with the trust signals from other trusted friends following Alice.
 
 Today, if users of Scuttlebutt want to chat through means other than Scuttlebutt itself, they lose all verification of the identity system that SSB relies on. Wouldn't it be nice to have realtime communication tools (chat, p2p video/audio calls, etc.) that make use of Scuttlebutt for its identity and peer discovery, but do their own communication out-of-band of Scuttlebutt's main "feed based" architecture for propogating messages?
 
