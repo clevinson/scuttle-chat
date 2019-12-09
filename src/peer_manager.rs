@@ -1,5 +1,5 @@
 use crate::discovery::{PeerAddr, PEER_DISCOVERY_PORT};
-use crate::peer_connection::{Handshaker, PeerConnection};
+use crate::peer_connection::{Handshaker, PeerConnection, PeerConnectionError};
 use ssb_crypto::{NetworkKey, PublicKey, SecretKey};
 use std::io;
 use std::net::TcpListener;
@@ -28,8 +28,11 @@ pub enum PeerEvent {
     MessageReceived(PeerMsg),
     // need to implement again when the
     // ConnectionClosed event gets called
-    ConnectionClosed(io::Result<()>),
+    HandshakeFailed,
+    ConnectionClosed(Result<(), PeerConnectionError>),
 }
+
+use ssb_handshake::HandshakeError;
 
 impl PeerManager {
     pub fn new(
@@ -61,11 +64,14 @@ impl PeerManager {
 
         let listener_handle = thread::spawn(move || -> io::Result<()> {
             for stream in listener.incoming() {
-                let peer_connection = hs.server_handshake(stream?)?;
-                event_bus.send(PeerManagerEvent {
-                    peer: peer_connection.peer,
-                    event: PeerEvent::HandshakeSuccessful(peer_connection),
-                });
+                if let Ok(stream) = stream {
+                    if let Ok(peer_connection) = hs.server_handshake(stream) {
+                        event_bus.send(PeerManagerEvent {
+                            peer: peer_connection.peer,
+                            event: PeerEvent::HandshakeSuccessful(peer_connection),
+                        });
+                    }
+                }
             }
             Ok(())
         });
@@ -89,7 +95,7 @@ impl PeerManager {
             Err(err) => {
                 event_bus.send(PeerManagerEvent {
                     peer,
-                    event: PeerEvent::ConnectionClosed(Err(err)),
+                    event: PeerEvent::HandshakeFailed,
                 });
             }
         })

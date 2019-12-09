@@ -1,41 +1,21 @@
+use snafu::{ResultExt, Snafu};
 use ssb_crypto::{
-    secretbox::{self, Tag, Nonce},
+    secretbox::{self, Nonce, Tag},
     NonceGen,
 };
 
 use byteorder::{BigEndian, ByteOrder};
 use std::io::{self, Read, Write};
 
-quick_error! {
-    #[derive(Debug)]
-    pub enum BoxStreamError {
-        Io(err: io::Error) {
-            description(err.description())
-        }
-        HeaderOpenFailed {
-            description("Failed to decrypt header")
-        }
-        BodyOpenFailed {
-            description("Failed to decrypt body")
-        }
-    }
+#[derive(Snafu, Debug)]
+pub enum BoxStreamError {
+    #[snafu(display("IO Error: {}", source))]
+    ReaderIoError { source: std::io::Error },
+    #[snafu(display("Header open failed"))]
+    HeaderOpenFailed {},
+    #[snafu(display("Body open failed"))]
+    BodyOpenFailed {},
 }
-
-impl From<io::Error> for BoxStreamError {
-    fn from(err: io::Error) -> BoxStreamError {
-        BoxStreamError::Io(err)
-    }
-}
-impl From<BoxStreamError> for io::Error {
-    fn from(err: BoxStreamError) -> io::Error {
-        match err {
-            BoxStreamError::Io(err) => err,
-            err => io::Error::new(io::ErrorKind::InvalidData, err),
-        }
-    }
-}
-
-use BoxStreamError::*;
 
 pub struct BoxReader<R: Read> {
     reader: R,
@@ -48,17 +28,21 @@ impl<R: Read> BoxReader<R> {
         BoxReader {
             reader,
             key,
-            noncegen
+            noncegen,
         }
     }
 
     pub fn recv(&mut self) -> Result<Option<Vec<u8>>, BoxStreamError> {
         let (body_size, body_tag) = {
             let mut head_tag = Tag([0; 16]);
-            self.reader.read_exact(&mut head_tag.0)?;
+            self.reader
+                .read_exact(&mut head_tag.0)
+                .context(ReaderIoError)?;
 
             let mut head_payload = [0; 18];
-            self.reader.read_exact(&mut head_payload[..])?;
+            self.reader
+                .read_exact(&mut head_payload[..])
+                .context(ReaderIoError)?;
 
             secretbox::open_detached(
                 &mut head_payload,
@@ -66,7 +50,7 @@ impl<R: Read> BoxReader<R> {
                 &self.noncegen.next(),
                 &self.key,
             )
-            .map_err(|_| HeaderOpenFailed)?;
+            .map_err(|_| BoxStreamError::HeaderOpenFailed {})?;
 
             let (sz, rest) = head_payload.split_at(2);
             (
@@ -80,10 +64,10 @@ impl<R: Read> BoxReader<R> {
             Ok(None)
         } else {
             let mut body = vec![0; body_size];
-            self.reader.read_exact(&mut body)?;
+            self.reader.read_exact(&mut body).context(ReaderIoError)?;
 
             secretbox::open_detached(&mut body, &body_tag, &self.noncegen.next(), &self.key)
-                .map_err(|_| BodyOpenFailed)?;
+                .map_err(|_| BoxStreamError::BodyOpenFailed {})?;
 
             Ok(Some(body))
         }

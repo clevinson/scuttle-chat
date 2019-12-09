@@ -7,15 +7,13 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-async-std = "0.99.11"
 ssb-crypto = "0.1.3"
 regex = "1.3.1"
 base64 = "0.11.0"
-hex = "0.4.0"
 net2 = "0.2.33"
 tui = "0.6.2"
 termion = "1.5.3"
 ssb-handshake = { git = "https://github.com/clevinson/ssb-handshake", branch = "sync" }
-quick-error = "1.2.2"
+snafu = "0.6.0"
 byteorder = "1.3.1"
 nix = "0.16.0"

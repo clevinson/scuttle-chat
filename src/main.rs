@@ -7,7 +7,7 @@ use tui::backend::TermionBackend;
 use tui::Terminal;
 
 #[macro_use]
-extern crate quick_error;
+extern crate snafu;
 
 mod app;
 mod box_stream;

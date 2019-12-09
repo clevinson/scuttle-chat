@@ -202,7 +202,7 @@ impl<'a> App<'a> {
                             },
                         ];
 
-                        let box_writer = peer_connection.box_writer_tx.clone();
+                        let peer_writer = peer_connection.peer_writer_tx.clone();
 
                         match self.peer_chats.get_mut(&pm_event.peer.feed_id()) {
                             // should check if peer_tx is already set, and handle
@@ -210,7 +210,7 @@ impl<'a> App<'a> {
                             // check prior peer_tx to see if it still is valid)
                             Some(chat) => {
                                 chat.messages.extend(msgs);
-                                chat.peer_tx = Some(box_writer);
+                                chat.peer_tx = Some(peer_writer);
                             }
                             None => {
                                 self.peer_chats.insert(
@@ -218,12 +218,36 @@ impl<'a> App<'a> {
                                     PeerChat {
                                         messages: msgs,
                                         input: "".to_string(),
-                                        peer_tx: Some(box_writer),
+                                        peer_tx: Some(peer_writer),
                                     },
                                 );
                             }
                         };
                         self.peer_manager.connections.push(peer_connection);
+                    }
+                    PeerEvent::HandshakeFailed => {
+                        self.log((
+                            format!("Failed to connect to {}", &pm_event.peer.feed_id()),
+                            "ERROR",
+                        ));
+                        if let Some(chat) = self.peer_chats.get_mut(&pm_event.peer.feed_id()) {
+                            chat.messages.push(ChatMsg {
+                                sender: ChatSender::Info,
+                                message: format!(
+                                    "Failed to connect to {}",
+                                    pm_event.peer.feed_id()
+                                ),
+                            });
+                            chat.peer_tx = None;
+                        }
+                    }
+                    PeerEvent::MessageReceived(peer_msg) => {
+                        if let Some(chat) = self.peer_chats.get_mut(&pm_event.peer.feed_id()) {
+                            chat.messages.push(ChatMsg {
+                                sender: ChatSender::Peer(pm_event.peer.feed_id()),
+                                message: peer_msg,
+                            });
+                        }
                     }
                     PeerEvent::ConnectionClosed(reason) => {
                         if let Err(e) = &reason {
@@ -238,14 +262,6 @@ impl<'a> App<'a> {
                                 },
                             });
                             chat.peer_tx = None;
-                        }
-                    }
-                    PeerEvent::MessageReceived(peer_msg) => {
-                        if let Some(chat) = self.peer_chats.get_mut(&pm_event.peer.feed_id()) {
-                            chat.messages.push(ChatMsg {
-                                sender: ChatSender::Peer(pm_event.peer.feed_id()),
-                                message: peer_msg,
-                            });
                         }
                     }
                 },
