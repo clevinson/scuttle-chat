@@ -4,6 +4,8 @@
 
 Built with <3 by @corlock `@sHFNLAao6phQ5AN17ecYNUbszDa4Qf6DhyQsjtQfdmY=.ed25519`
 
+![scuttle-chat screenshot](screenshots/1.png)
+
 ## What it do
 
 Scuttle-chat is a p2p chat application in a terminal UI. It makes use of Scuttlebutt's identity system for its public key infrastructure, and attempts to resolve SSB aliases/usernames of peers via your local SSB database.
