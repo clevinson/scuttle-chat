@@ -227,7 +227,7 @@ dependencies = [
  "ssb-crypto 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "ssb-handshake 0.4.0 (git+https://github.com/clevinson/ssb-handshake?branch=sync)",
  "termion 1.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "tui 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tui 0.7.0 (git+https://github.com/clevinson/tui-rs?branch=scroll-from-bottom)",
 ]
 
 [[package]]
@@ -329,8 +329,8 @@ dependencies = [
 
 [[package]]
 name = "tui"
-version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+version = "0.7.0"
+source = "git+https://github.com/clevinson/tui-rs?branch=scroll-from-bottom#ad88161b700906a4507c485ab7f9b89ed33b878d"
 dependencies = [
  "bitflags 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "cassowary 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -437,7 +437,7 @@ dependencies = [
 "checksum tar 0.4.26 (registry+https://github.com/rust-lang/crates.io-index)" = "b3196bfbffbba3e57481b6ea32249fbaf590396a52505a2615adbb79d9d826d3"
 "checksum termion 1.5.3 (registry+https://github.com/rust-lang/crates.io-index)" = "6a8fb22f7cde82c8220e5aeacb3258ed7ce996142c77cba193f203515e26c330"
 "checksum thread_local 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)" = "c6b53e329000edc2b34dbe8545fd20e55a333362d0a321909685a19bd28c3f1b"
-"checksum tui 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)" = "73b422ff4986065d33272b587907654f918a3fe8702786a8110bf68dede0d8ee"
+"checksum tui 0.7.0 (git+https://github.com/clevinson/tui-rs?branch=scroll-from-bottom)" = "<none>"
 "checksum unicode-segmentation 1.6.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e83e153d1053cbb5a118eeff7fd5be06ed99153f00dbcd8ae310c5fb2b22edc0"
 "checksum unicode-width 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)" = "7007dbd421b92cc6e28410fe7362e2e0a2503394908f417b68ec8d1c364c4e20"
 "checksum unicode-xid 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "826e7639553986605ec5979c7dd957c7895e93eabed50ab2ffa7f6128a75097c"

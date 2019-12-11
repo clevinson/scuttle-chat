@@ -11,7 +11,7 @@ ssb-crypto = "0.1.3"
 regex = "1.3.1"
 base64 = "0.11.0"
 net2 = "0.2.33"
-tui = "0.6.2"
+tui = { git = "https://github.com/clevinson/tui-rs", branch = "scroll-from-bottom" }
 termion = "1.5.3"
 ssb-handshake = { git = "https://github.com/clevinson/ssb-handshake", branch = "sync" }
 snafu = "0.6.0"

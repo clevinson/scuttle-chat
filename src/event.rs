@@ -4,8 +4,8 @@ use ssb_crypto::PublicKey;
 use std::io;
 use std::sync::mpsc;
 use std::thread;
-use std::time::Duration;
-use termion::event::Key;
+use std::time::{Duration, Instant};
+use termion::event::{Event as TermionEvent, Key, MouseButton, MouseEvent};
 use termion::input::TermRead;
 
 pub enum Event<I> {
@@ -16,7 +16,7 @@ pub enum Event<I> {
 }
 
 pub struct Events {
-    rx: mpsc::Receiver<Event<Key>>,
+    rx: mpsc::Receiver<Event<TermionEvent>>,
     _input_handle: thread::JoinHandle<()>,
     _tick_handle: thread::JoinHandle<()>,
     _new_peer_handle: thread::JoinHandle<()>,
@@ -53,13 +53,36 @@ impl Events {
             let tx = tx.clone();
             thread::spawn(move || {
                 let stdin = io::stdin();
-                for evt in stdin.keys() {
+                let mut last_scroll = Instant::now();
+
+                let mut throttle_scroll_events = |scroll_evt| {
+                    let new_scroll = Instant::now();
+                    if new_scroll.duration_since(last_scroll) > Duration::from_millis(20) {
+                        if let Err(_) = tx.send(Event::Input(scroll_evt)) {
+                            return;
+                        }
+
+                        last_scroll = new_scroll;
+                    }
+                };
+                for evt in stdin.events() {
                     match evt {
+                        Ok(
+                            scroll_evt @ TermionEvent::Mouse(MouseEvent::Press(
+                                MouseButton::WheelDown,
+                                _,
+                                _,
+                            )),
+                        ) => throttle_scroll_events(scroll_evt),
+                        Ok(
+                            scroll_evt @ TermionEvent::Mouse(MouseEvent::Press(
+                                MouseButton::WheelUp,
+                                _,
+                                _,
+                            )),
+                        ) => throttle_scroll_events(scroll_evt),
                         Ok(key) => {
                             if let Err(_) = tx.send(Event::Input(key)) {
-                                return;
-                            }
-                            if key == config.exit_key {
                                 return;
                             }
                         }
@@ -102,7 +125,7 @@ impl Events {
         }
     }
 
-    pub fn next(&self) -> Result<Event<Key>, mpsc::RecvError> {
+    pub fn next(&self) -> Result<Event<TermionEvent>, mpsc::RecvError> {
         self.rx.recv()
     }
 }

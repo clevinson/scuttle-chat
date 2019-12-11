@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::sync::mpsc;
 use std::sync::Arc;
-use termion::event::Key;
+use termion::event::{Event as TermionEvent, Key, MouseButton, MouseEvent};
 use tui::backend::Backend;
 use tui::style::{Color, Style};
 use tui::Terminal;
@@ -91,89 +91,107 @@ impl<'a> App<'a> {
             draw(&mut terminal, &self)?;
             match self.events.next()? {
                 Event::Input(input) => match input {
-                    Key::Char('q') => {
-                        break;
-                    }
-                    Key::Left => {
-                        self.selected = None;
-                    }
-                    Key::Down => {
-                        self.selected = if let Some(selected) = self.selected {
-                            if selected >= self.available_peers.len() - 1 {
+                    TermionEvent::Mouse(input) => match input {
+                        MouseEvent::Press(MouseButton::WheelUp, _, _) => {
+                            if let Some(mut chat) = self.selected_chat_mut() {
+                                chat.scroll_offset += 1;
+                            }
+                        }
+                        MouseEvent::Press(MouseButton::WheelDown, _, _) => {
+                            if let Some(mut chat) = self.selected_chat_mut() {
+                                if chat.scroll_offset > 0 {
+                                    chat.scroll_offset -= 1;
+                                }
+                            }
+                        }
+                        _ => {}
+                    },
+                    TermionEvent::Key(key) => match key {
+                        Key::Char('q') => {
+                            break;
+                        }
+                        Key::Left => {
+                            self.selected = None;
+                        }
+                        Key::Down => {
+                            self.selected = if let Some(selected) = self.selected {
+                                if selected >= self.available_peers.len() - 1 {
+                                    Some(0)
+                                } else {
+                                    Some(selected + 1)
+                                }
+                            } else if !self.available_peers.is_empty() {
                                 Some(0)
                             } else {
-                                Some(selected + 1)
+                                None
                             }
-                        } else if !self.available_peers.is_empty() {
-                            Some(0)
-                        } else {
-                            None
                         }
-                    }
-                    Key::Up => {
-                        self.selected = if let Some(selected) = self.selected {
-                            if selected > 0 {
-                                Some(selected - 1)
-                            } else {
-                                Some(self.available_peers.len() - 1)
-                            }
-                        } else if !self.available_peers.is_empty() {
-                            Some(0)
-                        } else {
-                            None
-                        }
-                    }
-                    Key::Char('\n') => {
-                        if let Some(selected) = self.selected {
-                            let feed_id = self.peer_list()[selected].clone();
-                            let ssb_peer = self.available_peers.get(&feed_id).unwrap();
-
-                            match self.peer_chats.get_mut(&feed_id) {
-                                Some(peer_chat) => match &peer_chat.peer_tx {
-                                    Some(tx) => {
-                                        tx.send(peer_chat.input.clone())?;
-                                        peer_chat.messages.push(ChatMsg {
-                                            sender: ChatSender::_You,
-                                            message: peer_chat.input.clone(),
-                                        });
-                                        peer_chat.input = "".to_string();
-                                    }
-                                    None => {
-                                        peer_chat.messages.push(ChatMsg {
-                                            sender: ChatSender::Info,
-                                            message: "Cannot send message, broken connetion?"
-                                                .to_string(),
-                                        });
-                                    }
-                                },
-                                None => {
-                                    // No peer_chat initiated, so we should handshake,
-                                    // which on "success" will initialiae a peer_chat
-                                    // struct
-                                    self.peer_manager.init_connection(**ssb_peer);
+                        Key::Up => {
+                            self.selected = if let Some(selected) = self.selected {
+                                if selected > 0 {
+                                    Some(selected - 1)
+                                } else {
+                                    Some(self.available_peers.len() - 1)
                                 }
-                            };
+                            } else if !self.available_peers.is_empty() {
+                                Some(0)
+                            } else {
+                                None
+                            }
+                        }
+                        Key::Char('\n') => {
+                            if let Some(selected) = self.selected {
+                                let feed_id = self.peer_list()[selected].clone();
+                                let ssb_peer = self.available_peers.get(&feed_id).unwrap();
 
-                        // implement something later to poll errors from join handles
-                        // this is the only way we'll be able to handle TCP timeouts
-                        // and similar errors from handshakes
-                        } else {
-                            self.log((
-                                "No peer selected. Cannot initialize handshake".to_string(),
-                                "ERROR",
-                            ));
+                                match self.peer_chats.get_mut(&feed_id) {
+                                    Some(peer_chat) => match &peer_chat.peer_tx {
+                                        Some(tx) => {
+                                            tx.send(peer_chat.input.clone())?;
+                                            peer_chat.messages.push(ChatMsg {
+                                                sender: ChatSender::_You,
+                                                message: peer_chat.input.clone(),
+                                            });
+                                            peer_chat.input = "".to_string();
+                                        }
+                                        None => {
+                                            peer_chat.messages.push(ChatMsg {
+                                                sender: ChatSender::Info,
+                                                message: "Cannot send message, broken connetion?"
+                                                    .to_string(),
+                                            });
+                                        }
+                                    },
+                                    None => {
+                                        // No peer_chat initiated, so we should handshake,
+                                        // which on "success" will initialiae a peer_chat
+                                        // struct
+                                        self.peer_manager.init_connection(**ssb_peer);
+                                    }
+                                };
+
+                            // implement something later to poll errors from join handles
+                            // this is the only way we'll be able to handle TCP timeouts
+                            // and similar errors from handshakes
+                            } else {
+                                self.log((
+                                    "No peer selected. Cannot initialize handshake".to_string(),
+                                    "ERROR",
+                                ));
+                            }
                         }
-                    }
-                    Key::Char(c) => {
-                        if let Some(chat) = self.selected_chat_mut() {
-                            chat.input.push(c);
+                        Key::Char(c) => {
+                            if let Some(chat) = self.selected_chat_mut() {
+                                chat.input.push(c);
+                            }
                         }
-                    }
-                    Key::Backspace => {
-                        if let Some(chat) = self.selected_chat_mut() {
-                            chat.input.pop();
+                        Key::Backspace => {
+                            if let Some(chat) = self.selected_chat_mut() {
+                                chat.input.pop();
+                            }
                         }
-                    }
+                        _ => {}
+                    },
                     _ => {}
                 },
                 Event::Tick => {
@@ -219,6 +237,7 @@ impl<'a> App<'a> {
                                         messages: msgs,
                                         input: "".to_string(),
                                         peer_tx: Some(peer_writer),
+                                        scroll_offset: 0,
                                     },
                                 );
                             }

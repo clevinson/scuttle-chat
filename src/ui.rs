@@ -2,9 +2,9 @@ use crate::app::App;
 use crate::chat::ChatSender;
 use std::io;
 use tui::backend::Backend;
-use tui::layout::{Constraint, Direction, Layout};
+use tui::layout::{Constraint, Corner, Direction, Layout, ScrollFrom};
 use tui::style::{Color, Modifier, Style};
-use tui::widgets::{Block, Borders, Paragraph, SelectableList, Text, Widget};
+use tui::widgets::{Block, Borders, List, Paragraph, SelectableList, Text, Widget};
 use tui::Terminal;
 
 pub fn draw<'a, B: Backend>(terminal: &mut Terminal<B>, app: &App<'a>) -> Result<(), io::Error> {
@@ -74,7 +74,7 @@ fn draw_chat_pane<'a, B: Backend>(
 ) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Min(1), Constraint::Length(4)].as_ref())
+        .constraints([Constraint::Min(1), Constraint::Length(5)].as_ref())
         .split(area);
 
     let selected_peer = app
@@ -90,6 +90,11 @@ fn draw_chat_pane<'a, B: Backend>(
         "No chat selected. To initiate a chat, select a user, and press <RETURN>",
         app.info_style,
     )];
+
+    let scroll_offset = app
+        .selected_chat()
+        .map(|chat| chat.scroll_offset)
+        .unwrap_or(0);
 
     let chat_texts = app
         .selected_chat()
@@ -118,6 +123,8 @@ fn draw_chat_pane<'a, B: Backend>(
     Paragraph::new(chat_texts.iter())
         .block(Block::default().borders(Borders::ALL).title(&chat_title))
         .wrap(true)
+        .scroll_from(ScrollFrom::Bottom)
+        .scroll(scroll_offset)
         .render(f, chunks[0]);
 
     Paragraph::new([Text::raw(input_text)].iter())

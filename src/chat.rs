@@ -19,7 +19,8 @@ pub struct ChatMsg {
 pub struct PeerChat {
     pub messages: Vec<ChatMsg>,
     pub input: String,
-    pub peer_tx: Option<mpsc::Sender<String>>
+    pub peer_tx: Option<mpsc::Sender<String>>,
+    pub scroll_offset: u16,
 }
 
 impl fmt::Display for ChatSender {
