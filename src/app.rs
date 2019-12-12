@@ -88,7 +88,7 @@ impl<'a> App<'a> {
         self.peer_manager.start_listener()?;
 
         loop {
-            draw(&mut terminal, &self)?;
+            let ui_state = draw(&mut terminal, &self)?;
             match self.events.next()? {
                 Event::Input(input) => match input {
                     TermionEvent::Mouse(input) => match input {

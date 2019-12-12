@@ -2,7 +2,7 @@ use crate::app::App;
 use crate::chat::ChatSender;
 use std::io;
 use tui::backend::Backend;
-use tui::layout::{Constraint, Corner, Direction, Layout, ScrollFrom};
+use tui::layout::{Constraint, Corner, Direction, Layout, ScrollMode};
 use tui::style::{Color, Modifier, Style};
 use tui::widgets::{Block, Borders, List, Paragraph, SelectableList, Text, Widget};
 use tui::Terminal;
@@ -123,7 +123,8 @@ fn draw_chat_pane<'a, B: Backend>(
     Paragraph::new(chat_texts.iter())
         .block(Block::default().borders(Borders::ALL).title(&chat_title))
         .wrap(true)
-        .scroll_from(ScrollFrom::Bottom)
+        .scroll_overflow_char(Some('~'))
+        .scroll_mode(ScrollMode::Tail)
         .scroll(scroll_offset)
         .render(f, chunks[0]);
 

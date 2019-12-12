@@ -330,7 +330,7 @@ dependencies = [
 [[package]]
 name = "tui"
 version = "0.7.0"
-source = "git+https://github.com/clevinson/tui-rs?branch=scroll-from-bottom#ad88161b700906a4507c485ab7f9b89ed33b878d"
+source = "git+https://github.com/clevinson/tui-rs?branch=scroll-from-bottom#995008fe0f2a1d3b48f945bb84c617b7945abfd3"
 dependencies = [
  "bitflags 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "cassowary 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
