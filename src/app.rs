@@ -3,7 +3,8 @@ use crate::discovery::PeerAddr;
 use crate::event::{Event, Events};
 use crate::peer_manager::{PeerEvent, PeerManager, PeerManagerEvent};
 use crate::ui::draw;
-use ssb_crypto::generate_longterm_keypair;
+use ssb_crypto::{generate_longterm_keypair, PublicKey, SecretKey};
+use ssb_keyfile::load_or_create_keys;
 use std::collections::HashMap;
 use std::error::Error;
 use std::sync::mpsc;
@@ -26,10 +27,15 @@ pub struct App<'a> {
     pub peer_manager: PeerManager,
 }
 
+use std::convert::TryInto;
+
 impl<'a> App<'a> {
     pub fn new() -> App<'a> {
         let (pm_tx, pm_rx) = mpsc::channel::<PeerManagerEvent>();
-        let (pk, sk) = generate_longterm_keypair();
+        let (common_pk, common_sk) = load_or_create_keys().expect("Cannot load key file");
+
+        let pk: PublicKey = common_pk.try_into().expect("Badly formatted PublicKey");
+        let sk: SecretKey = common_sk.try_into().expect("Badly formatted SecretKey");
         let peer_manager = PeerManager::new(pk.clone(), sk.clone(), pm_tx);
 
         let event_listener = Events::new(pk, pm_rx);

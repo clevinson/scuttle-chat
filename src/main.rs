@@ -39,6 +39,8 @@ fn panic_hook(info: &PanicInfo<'_>) {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+
+
     std::panic::set_hook(Box::new(|info| panic_hook(info)));
     // Terminal initialization
     let stdout = io::stdout().into_raw_mode()?;
