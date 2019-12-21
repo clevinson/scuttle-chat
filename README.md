@@ -18,15 +18,15 @@ Scuttle-chat is a p2p chat application in a terminal UI. It makes use of Scuttle
 
 **To do**
 - [x] Improve scroll behavior in chat window
+- [x] Source keypair from ~/.ssb/secret
+- [x] Improve debug log / window
 - [ ] Add CLI arguments for customization (debug info, custom port selection, etc.)
-- [ ] Source keypair from ~/.ssb/secret
 - [ ] Tests!
 - [ ] Resolving of username/aliases from local SSB database when available
 - [ ] Clean shutdown (goodbye message to all open chats)
 - [ ] Update "available peers" when peers go offline
 - [ ] Ability to manually set unverified username on startup for non-scuttlebutt users
 - [ ] Add cursor support
-- [ ] Improve debug log / window
 - [ ] Integrate with [ssb rooms](https://github.com/staltz/ssb-room)
 
 ## Install & Run
