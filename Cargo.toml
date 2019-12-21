@@ -10,16 +10,12 @@ edition = "2018"
 ssb-crypto = "0.1.3"
 regex = "1.3.1"
 base64 = "0.11.0"
+dirs = "2.0.2"
 net2 = "0.2.33"
 tui = { git = "https://github.com/clevinson/tui-rs", branch = "scroll-from-bottom" }
 termion = "1.5.3"
 ssb-handshake = { git = "https://github.com/clevinson/ssb-handshake", branch = "sync" }
-ssb-keyfile = "0.1.2"
-ssb-common = "0.3.0"
+ssb-keyfile = "0.2.0"
 snafu = "0.6.0"
 byteorder = "1.3.1"
 nix = "0.16.0"
-
-[patch.crates-io]
-ssb-common = { git = "https://github.com/sunrise-choir/ssb-common-rs" }
-ssb-keyfile = { path = "../ssb-keyfile-rs" }

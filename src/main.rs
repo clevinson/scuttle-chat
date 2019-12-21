@@ -17,6 +17,7 @@ mod event;
 mod peer_manager;
 mod ui;
 mod peer_connection;
+mod ssb;
 
 use app::App;
 

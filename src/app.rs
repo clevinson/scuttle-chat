@@ -2,9 +2,8 @@ use crate::chat::{ChatMsg, ChatSender, FeedId, PeerChat};
 use crate::discovery::PeerAddr;
 use crate::event::{Event, Events};
 use crate::peer_manager::{PeerEvent, PeerManager, PeerManagerEvent};
+use crate::ssb::SsbConfig;
 use crate::ui::draw;
-use ssb_crypto::{generate_longterm_keypair, PublicKey, SecretKey};
-use ssb_keyfile::load_or_create_keys;
 use std::collections::HashMap;
 use std::error::Error;
 use std::sync::mpsc;
@@ -14,41 +13,63 @@ use tui::backend::Backend;
 use tui::style::{Color, Style};
 use tui::Terminal;
 
-pub struct App<'a> {
-    pub available_peers: HashMap<FeedId, Arc<PeerAddr>>,
-    pub selected: Option<usize>,
-    pub peer_chats: HashMap<FeedId, PeerChat>,
-    pub debug_log: Vec<(String, &'a str)>,
+#[derive(PartialEq, Eq)]
+pub enum AppMode {
+    Normal,
+    Debug,
+    Chat(String),
+}
+
+pub struct UiStyles {
     pub info_style: Style,
     pub warning_style: Style,
     pub error_style: Style,
     pub critical_style: Style,
+    pub normal_block_style: Style,
+    pub hidden_block_style: Style,
+    pub highlighted_block_style: Style,
+}
+
+pub struct App<'a> {
+    pub mode: AppMode,
+    pub available_peers: HashMap<FeedId, Arc<PeerAddr>>,
+    pub selected: Option<usize>,
+    pub peer_chats: HashMap<FeedId, PeerChat>,
+    pub debug_log: Vec<(String, &'a str)>,
+    pub ui_styles: UiStyles,
     pub events: Events,
     pub peer_manager: PeerManager,
 }
 
-use std::convert::TryInto;
-
 impl<'a> App<'a> {
     pub fn new() -> App<'a> {
         let (pm_tx, pm_rx) = mpsc::channel::<PeerManagerEvent>();
-        let (common_pk, common_sk) = load_or_create_keys().expect("Cannot load key file");
 
-        let pk: PublicKey = common_pk.try_into().expect("Badly formatted PublicKey");
-        let sk: SecretKey = common_sk.try_into().expect("Badly formatted SecretKey");
+        let ssb_config = SsbConfig::default();
+
+        let (pk, sk) = ssb_config.keys();
+
         let peer_manager = PeerManager::new(pk.clone(), sk.clone(), pm_tx);
 
-        let event_listener = Events::new(pk, pm_rx);
+        let event_listener = Events::new(pk.clone(), pm_rx);
 
-        App {
-            available_peers: HashMap::new(),
-            peer_chats: HashMap::new(),
-            selected: None,
-            debug_log: Vec::new(),
+        let ui_styles = UiStyles {
+            normal_block_style: Style::default().fg(Color::Cyan),
+            hidden_block_style: Style::default().fg(Color::DarkGray),
+            highlighted_block_style: Style::default().fg(Color::LightGreen),
             info_style: Style::default().fg(Color::White),
             warning_style: Style::default().fg(Color::Yellow),
             error_style: Style::default().fg(Color::Magenta),
             critical_style: Style::default().fg(Color::Red),
+        };
+
+        App {
+            mode: AppMode::Normal,
+            available_peers: HashMap::new(),
+            peer_chats: HashMap::new(),
+            selected: None,
+            debug_log: Vec::new(),
+            ui_styles,
             events: event_listener,
             peer_manager,
         }
@@ -86,38 +107,58 @@ impl<'a> App<'a> {
         }
         self.debug_log.push(entry);
     }
-
-    pub fn run<B: Backend>(
-        &mut self,
-        mut terminal: &mut Terminal<B>,
-    ) -> Result<(), Box<dyn Error>> {
-        self.peer_manager.start_listener()?;
-
-        loop {
-            let ui_state = draw(&mut terminal, &self)?;
-            match self.events.next()? {
-                Event::Input(input) => match input {
-                    TermionEvent::Mouse(input) => match input {
-                        MouseEvent::Press(MouseButton::WheelUp, _, _) => {
-                            if let Some(mut chat) = self.selected_chat_mut() {
-                                chat.scroll_offset += 1;
-                            }
-                        }
-                        MouseEvent::Press(MouseButton::WheelDown, _, _) => {
-                            if let Some(mut chat) = self.selected_chat_mut() {
-                                if chat.scroll_offset > 0 {
-                                    chat.scroll_offset -= 1;
-                                }
-                            }
-                        }
-                        _ => {}
-                    },
+    fn handle_input(&mut self, input: TermionEvent) -> Result<(), Box<dyn Error>> {
+        match &self.mode {
+            AppMode::Debug => match input {
+                TermionEvent::Key(key) => match key {
+                    Key::Esc => {
+                        self.mode = AppMode::Normal;
+                    }
+                    _ => {}
+                },
+                _ => {}
+            },
+            AppMode::Normal => {
+                match input {
                     TermionEvent::Key(key) => match key {
                         Key::Char('q') => {
-                            break;
+                            // should quit the program gracefully!
+                            unimplemented!();
+                        }
+                        Key::Char('d') => {
+                            self.mode = AppMode::Debug;
                         }
                         Key::Left => {
                             self.selected = None;
+                        }
+                        Key::Esc => {
+                            self.selected = None;
+                        }
+                        Key::Char('j') => {
+                            self.selected = if let Some(selected) = self.selected {
+                                if selected >= self.available_peers.len() - 1 {
+                                    Some(0)
+                                } else {
+                                    Some(selected + 1)
+                                }
+                            } else if !self.available_peers.is_empty() {
+                                Some(0)
+                            } else {
+                                None
+                            }
+                        }
+                        Key::Char('k') => {
+                            self.selected = if let Some(selected) = self.selected {
+                                if selected > 0 {
+                                    Some(selected - 1)
+                                } else {
+                                    Some(self.available_peers.len() - 1)
+                                }
+                            } else if !self.available_peers.is_empty() {
+                                Some(0)
+                            } else {
+                                None
+                            }
                         }
                         Key::Down => {
                             self.selected = if let Some(selected) = self.selected {
@@ -151,28 +192,15 @@ impl<'a> App<'a> {
                                 let ssb_peer = self.available_peers.get(&feed_id).unwrap();
 
                                 match self.peer_chats.get_mut(&feed_id) {
-                                    Some(peer_chat) => match &peer_chat.peer_tx {
-                                        Some(tx) => {
-                                            tx.send(peer_chat.input.clone())?;
-                                            peer_chat.messages.push(ChatMsg {
-                                                sender: ChatSender::_You,
-                                                message: peer_chat.input.clone(),
-                                            });
-                                            peer_chat.input = "".to_string();
-                                        }
-                                        None => {
-                                            peer_chat.messages.push(ChatMsg {
-                                                sender: ChatSender::Info,
-                                                message: "Cannot send message, broken connetion?"
-                                                    .to_string(),
-                                            });
-                                        }
-                                    },
+                                    Some(_peer_chat) => {
+                                        self.mode = AppMode::Chat(feed_id);
+                                    }
                                     None => {
                                         // No peer_chat initiated, so we should handshake,
                                         // which on "success" will initialiae a peer_chat
                                         // struct
                                         self.peer_manager.init_connection(**ssb_peer);
+                                        self.mode = AppMode::Chat(feed_id);
                                     }
                                 };
 
@@ -186,6 +214,57 @@ impl<'a> App<'a> {
                                 ));
                             }
                         }
+                        _ => {}
+                    },
+                    _ => {}
+                }
+            }
+            AppMode::Chat(feed_id) => {
+                match input {
+                    TermionEvent::Mouse(input) => match input {
+                        MouseEvent::Press(MouseButton::WheelUp, _, _) => {
+                            if let Some(mut chat) = self.selected_chat_mut() {
+                                chat.scroll_offset += 1;
+                            }
+                        }
+                        MouseEvent::Press(MouseButton::WheelDown, _, _) => {
+                            if let Some(mut chat) = self.selected_chat_mut() {
+                                if chat.scroll_offset > 0 {
+                                    chat.scroll_offset -= 1;
+                                }
+                            }
+                        }
+                        _ => {}
+                    },
+                    TermionEvent::Key(key) => match key {
+                        Key::Char('\n') => {
+                            let ssb_peer = self.available_peers.get(feed_id).unwrap();
+
+                            match self.peer_chats.get_mut(feed_id) {
+                                Some(peer_chat) => match &peer_chat.peer_tx {
+                                    Some(tx) => {
+                                        tx.send(peer_chat.input.clone()).unwrap();
+                                        peer_chat.messages.push(ChatMsg {
+                                            sender: ChatSender::_You,
+                                            message: peer_chat.input.clone(),
+                                        });
+                                        peer_chat.input = "".to_string();
+                                    }
+                                    None => {
+                                        peer_chat.messages.push(ChatMsg {
+                                            sender: ChatSender::Info,
+                                            message: "Cannot send message, broken connetion?"
+                                                .to_string(),
+                                        });
+                                    }
+                                },
+                                None => {
+                                    // if the chat is selected, but connection is closed,
+                                    // initiation a new handshake
+                                    self.peer_manager.init_connection(**ssb_peer);
+                                }
+                            };
+                        }
                         Key::Char(c) => {
                             if let Some(chat) = self.selected_chat_mut() {
                                 chat.input.push(c);
@@ -196,10 +275,28 @@ impl<'a> App<'a> {
                                 chat.input.pop();
                             }
                         }
+                        Key::Esc => {
+                            self.mode = AppMode::Normal;
+                        }
                         _ => {}
                     },
                     _ => {}
-                },
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn run<B: Backend>(
+        &mut self,
+        mut terminal: &mut Terminal<B>,
+    ) -> Result<(), Box<dyn Error>> {
+        self.peer_manager.start_listener()?;
+
+        loop {
+            draw(&mut terminal, &self)?;
+            match self.events.next()? {
+                Event::Input(input) => self.handle_input(input)?,
                 Event::Tick => {
                     //let peer_str = "found da peer";
                     //self.advance();
