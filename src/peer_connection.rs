@@ -138,7 +138,7 @@ impl Handshaker {
 
     pub fn client_handshake(&self, peer: PeerAddr) -> Result<PeerConnection, PeerConnectionError> {
         let tcp_stream =
-            TcpStream::connect_timeout(&peer.socket_addr, std::time::Duration::from_millis(500))
+            TcpStream::connect_timeout(&peer.socket_addr, std::time::Duration::from_millis(1000))
                 .context(CannotConnectToPeer)?;
 
         let config = self.clone();

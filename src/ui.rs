@@ -10,7 +10,6 @@ use tui::Terminal;
 pub fn draw<'a, B: Backend>(terminal: &mut Terminal<B>, app: &App<'a>) -> Result<(), io::Error> {
     terminal.draw(|mut f| match app.mode {
         AppMode::Debug => {
-
             let area = Layout::default()
                 .direction(Direction::Horizontal)
                 .margin(5)
@@ -126,10 +125,9 @@ fn draw_welcome_pane<'a, B: Backend>(
                     ╚██████╗██║  ██║██║  ██║   ██║   
                      ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   
 
-  <h>      : Select up (or up arrow key)
-  <j>      : Select down (or down arrow key)
-  <RETURN> : Open chat with selected peer (initiates handshake if
-             connection not open)
+  <k>      : Select up
+  <j>      : Select down
+  <RETURN> : Start chat with selected peer
   <ESC>    : Return to main menu
   <h>      : Help (not yet implemented)
   <d>      : View debug window
@@ -219,12 +217,15 @@ fn draw_input_area<'a, B: Backend>(
         .map(|chat| chat.input.clone())
         .unwrap_or("".to_string());
 
-    let input_block_style = match app.mode {
-        AppMode::Chat(_) => app.ui_styles.normal_block_style,
-        _ => app.ui_styles.hidden_block_style,
+    let (input_block_style, input_text_style) = match app.mode {
+        AppMode::Chat(_) => (app.ui_styles.highlighted_block_style, Style::default()),
+        _ => (
+            app.ui_styles.hidden_block_style,
+            Style::default().fg(Color::DarkGray),
+        ),
     };
 
-    Paragraph::new([Text::raw(input_text)].iter())
+    Paragraph::new([Text::styled(input_text, input_text_style)].iter())
         .block(
             Block::default()
                 .borders(Borders::ALL)

@@ -57,9 +57,9 @@ impl<'a> App<'a> {
             normal_block_style: Style::default().fg(Color::Cyan),
             hidden_block_style: Style::default().fg(Color::DarkGray),
             highlighted_block_style: Style::default().fg(Color::LightGreen),
-            info_style: Style::default().fg(Color::White),
+            info_style: Style::default().fg(Color::Gray),
             warning_style: Style::default().fg(Color::Yellow),
-            error_style: Style::default().fg(Color::Magenta),
+            error_style: Style::default().fg(Color::Blue),
             critical_style: Style::default().fg(Color::Red),
         };
 
@@ -347,21 +347,47 @@ impl<'a> App<'a> {
                         };
                         self.peer_manager.connections.push(peer_connection);
                     }
-                    PeerEvent::HandshakeFailed => {
+                    PeerEvent::HandshakeFailed(err) => {
                         self.log((
                             format!("Failed to connect to {}", &pm_event.peer.feed_id()),
                             "ERROR",
                         ));
-                        if let Some(chat) = self.peer_chats.get_mut(&pm_event.peer.feed_id()) {
-                            chat.messages.push(ChatMsg {
+                        let msgs = vec![
+                            ChatMsg {
                                 sender: ChatSender::Info,
                                 message: format!(
                                     "Failed to connect to {}",
                                     pm_event.peer.feed_id()
                                 ),
-                            });
-                            chat.peer_tx = None;
-                        }
+                            },
+                            ChatMsg {
+                                sender: ChatSender::Info,
+                                message: format!(
+                                    "{}",
+                                    err
+                                ),
+                            },
+                        ];
+                        match self.peer_chats.get_mut(&pm_event.peer.feed_id()) {
+                            // should check if peer_tx is already set, and handle
+                            // gracefully (fail to set new handshake connection, or
+                            // check prior peer_tx to see if it still is valid)
+                            Some(chat) => {
+                                chat.messages.extend(msgs);
+                                chat.peer_tx = None;
+                            }
+                            None => {
+                                self.peer_chats.insert(
+                                    pm_event.peer.feed_id(),
+                                    PeerChat {
+                                        messages: msgs,
+                                        input: "".to_string(),
+                                        peer_tx: None,
+                                        scroll_offset: 0,
+                                    },
+                                );
+                            }
+                        };
                     }
                     PeerEvent::MessageReceived(peer_msg) => {
                         if let Some(chat) = self.peer_chats.get_mut(&pm_event.peer.feed_id()) {

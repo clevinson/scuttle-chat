@@ -28,7 +28,7 @@ pub enum PeerEvent {
     MessageReceived(PeerMsg),
     // need to implement again when the
     // ConnectionClosed event gets called
-    HandshakeFailed,
+    HandshakeFailed(PeerConnectionError),
     ConnectionClosed(Result<(), PeerConnectionError>),
 }
 
@@ -95,7 +95,7 @@ impl PeerManager {
             Err(err) => {
                 event_bus.send(PeerManagerEvent {
                     peer,
-                    event: PeerEvent::HandshakeFailed,
+                    event: PeerEvent::HandshakeFailed(err),
                 });
             }
         })
